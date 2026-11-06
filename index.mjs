@@ -11,11 +11,25 @@ const CUSTOM_CONFIG_FILE = path.join(os.homedir(), ".magpie-sync-config.json");
 const STATUS_FILE = path.join(MAGPIE_DIR, "nutstore-auth-sync-status.json");
 const SYNC_FILENAME = "magpie_credentials_bundle.enc";
 
+// 包含用户所有模型、供应商、Token、插件账号的全部关键数据文件
+const MAGPIE_FILES_TO_SYNC = [
+  "logins.json",             // Codex, Grok, Antigravity(Google AI Pro), 各插件登录态
+  "plugin-auth.json",        // WorkBuddy, WorkBuddy AI, MiniMax, 商汤小浣熊, AutoClaw, ZCode
+  "providers.json",          // 日日新(Sensetime), New API, 自定义模型与 API Key
+  "plugin-providers.json",   // 插件模型供应商定义与配置
+  "plugin-checkin.json",     // 签到与配额数据
+  "workbuddy-checkin.json",  // WorkBuddy 签到
+  "quotas.json",             // 额度与余额状态
+  "affinity.json",           // 模型路由与偏好
+  "plugins.json",            // 已启用的插件清单 (确保B电脑自动安装相同插件)
+  "codex-portable.json",     // Codex 本地路径
+  "credits-daily.json",      // 每日配额缓存
+];
+
 // -------------------------------------------------------------
-// 1. 读取坚果云配置 (优先直接复用 Magpie 现有的坚果云配置)
+// 1. 读取坚果云配置 (直接复用 Magpie 现有的坚果云配置)
 // -------------------------------------------------------------
 function getNutstoreConfig() {
-  // 优先策略 1: 直接读取 Magpie 原生 settings 里已配置好的坚果云
   if (fs.existsSync(MAGPIE_SYNC_JSON)) {
     try {
       const magpieSync = JSON.parse(fs.readFileSync(MAGPIE_SYNC_JSON, "utf-8"));
@@ -30,11 +44,10 @@ function getNutstoreConfig() {
         };
       }
     } catch (e) {
-      console.warn("[NutstoreSync] 读取 Magpie 原生 sync.json 失败:", e.message);
+      console.warn("[NutstoreSync] 读取 Magpie sync.json 失败:", e.message);
     }
   }
 
-  // 备用策略 2: 自定义配置文件
   if (fs.existsSync(CUSTOM_CONFIG_FILE)) {
     try {
       const custom = JSON.parse(fs.readFileSync(CUSTOM_CONFIG_FILE, "utf-8"));
@@ -140,66 +153,133 @@ class NutstoreWebDAV {
 }
 
 // -------------------------------------------------------------
-// 4. 凭据探测与跨平台写入
+// 4. 全量供应商凭据打包与恢复
 // -------------------------------------------------------------
-function getLocalCredentials() {
+function collectFullCredentials() {
   const home = os.homedir();
-  const files = {};
+  const bundle = {
+    version: 2,
+    updatedAt: Date.now(),
+    platform: process.platform,
+    magpieFiles: {},
+    externalFiles: {},
+  };
 
-  const claudePath = path.join(home, ".claude", ".credentials.json");
-  if (fs.existsSync(claudePath)) {
-    try {
-      files.claude = fs.readFileSync(claudePath, "utf-8");
-    } catch {}
-  }
-
-  const codexPath = path.join(home, ".codex", "auth.json");
-  if (fs.existsSync(codexPath)) {
-    try {
-      files.codex = fs.readFileSync(codexPath, "utf-8");
-    } catch {}
-  }
-
-  return files;
-}
-
-function restoreLocalCredentials(files) {
-  const home = os.homedir();
-  const isMac = process.platform === "darwin";
-
-  if (files.claude) {
-    const claudeDir = path.join(home, ".claude");
-    fs.mkdirSync(claudeDir, { recursive: true });
-    const claudeFile = path.join(claudeDir, ".credentials.json");
-    fs.writeFileSync(claudeFile, files.claude, "utf-8");
-
-    if (isMac) {
+  // 1. 打包 Magpie 内部全部供应商数据
+  for (const filename of MAGPIE_FILES_TO_SYNC) {
+    const filePath = path.join(MAGPIE_DIR, filename);
+    if (fs.existsSync(filePath)) {
       try {
-        const username = process.env.USER || "default";
-        const safeVal = files.claude.replace(/"/g, '\\"');
-        exec(`security add-generic-password -a "${username}" -s "Claude Code-credentials" -w "${safeVal}" -U`, () => {});
-      } catch {}
+        bundle.magpieFiles[filename] = fs.readFileSync(filePath, "utf-8");
+      } catch (err) {
+        console.warn(`[NutstoreSync] 读取 ${filename} 失败:`, err.message);
+      }
     }
   }
 
-  if (files.codex) {
-    const codexDir = path.join(home, ".codex");
-    fs.mkdirSync(codexDir, { recursive: true });
-    const codexFile = path.join(codexDir, "auth.json");
-    fs.writeFileSync(codexFile, files.codex, "utf-8");
+  // 2. 打包外部 Claude Code 凭据
+  const claudePath = path.join(home, ".claude", ".credentials.json");
+  if (fs.existsSync(claudePath)) {
+    try {
+      bundle.externalFiles.claude = fs.readFileSync(claudePath, "utf-8");
+    } catch {}
+  }
+
+  // 3. 打包外部 Codex / ChatGPT 凭据
+  const codexPath = path.join(home, ".codex", "auth.json");
+  if (fs.existsSync(codexPath)) {
+    try {
+      bundle.externalFiles.codex = fs.readFileSync(codexPath, "utf-8");
+    } catch {}
+  }
+
+  return bundle;
+}
+
+function restoreFullCredentials(bundle) {
+  const home = os.homedir();
+  const isMac = process.platform === "darwin";
+
+  // 1. 恢复 Magpie 内部所有供应商数据文件
+  if (bundle.magpieFiles) {
+    fs.mkdirSync(MAGPIE_DIR, { recursive: true });
+    for (const [filename, content] of Object.entries(bundle.magpieFiles)) {
+      try {
+        const dest = path.join(MAGPIE_DIR, filename);
+        // 先备份本地旧文件
+        if (fs.existsSync(dest)) {
+          fs.writeFileSync(dest + ".sync.bak", fs.readFileSync(dest));
+        }
+        fs.writeFileSync(dest, content, "utf-8");
+      } catch (err) {
+        console.error(`[NutstoreSync] 恢复 ${filename} 失败:`, err.message);
+      }
+    }
+  }
+
+  // 2. 恢复外部凭据 (Claude Code & Codex)
+  const ext = bundle.externalFiles || {};
+  if (ext.claude) {
+    try {
+      const claudeDir = path.join(home, ".claude");
+      fs.mkdirSync(claudeDir, { recursive: true });
+      const claudeFile = path.join(claudeDir, ".credentials.json");
+      fs.writeFileSync(claudeFile, ext.claude, "utf-8");
+
+      if (isMac) {
+        const username = process.env.USER || "default";
+        const safeVal = ext.claude.replace(/"/g, '\\"');
+        exec(`security add-generic-password -a "${username}" -s "Claude Code-credentials" -w "${safeVal}" -U`, () => {});
+      }
+    } catch {}
+  }
+
+  if (ext.codex) {
+    try {
+      const codexDir = path.join(home, ".codex");
+      fs.mkdirSync(codexDir, { recursive: true });
+      const codexFile = path.join(codexDir, "auth.json");
+      fs.writeFileSync(codexFile, ext.codex, "utf-8");
+    } catch {}
   }
 }
 
-function updateStatusFile(extra = {}) {
+// 统计检测到的全部供应商摘要，写入状态供 UI 展示
+function updateSyncStatus(extra = {}) {
   try {
-    const creds = getLocalCredentials();
     const config = getNutstoreConfig();
+    const providersList = [];
+
+    // 从 logins.json 统计
+    const loginsPath = path.join(MAGPIE_DIR, "logins.json");
+    if (fs.existsSync(loginsPath)) {
+      try {
+        const logins = JSON.parse(fs.readFileSync(loginsPath, "utf-8"));
+        logins.forEach((l) => {
+          const name = l.agent?.replace("plugin:", "") || l.agent;
+          providersList.push(`${name} (${l.user || l.plan || "已登录"})`);
+        });
+      } catch {}
+    }
+
+    // 从 providers.json 统计
+    const providersPath = path.join(MAGPIE_DIR, "providers.json");
+    if (fs.existsSync(providersPath)) {
+      try {
+        const pObj = JSON.parse(fs.readFileSync(providersPath, "utf-8"));
+        pObj.providers?.forEach((p) => {
+          if (p.id && !providersList.some((item) => item.includes(p.id))) {
+            providersList.push(`${p.name || p.id} (API Key)`);
+          }
+        });
+      } catch {}
+    }
+
     const data = {
       updatedAt: new Date().toLocaleString(),
       account: config?.webdav_user || "未配置",
-      source: config?.source === "magpie_native" ? "已直接继承 Magpie 原生坚果云配置" : "自定义配置",
-      claudeReady: Boolean(creds.claude),
-      codexReady: Boolean(creds.codex),
+      providerCount: providersList.length,
+      providers: providersList.slice(0, 30),
       platform: process.platform,
       ...extra,
     };
@@ -208,7 +288,7 @@ function updateStatusFile(extra = {}) {
 }
 
 // -------------------------------------------------------------
-// 5. 插件主逻辑与导出
+// 5. 自动上传与拉取控制
 // -------------------------------------------------------------
 let lastUploadedHash = "";
 let lastRemoteSignature = "";
@@ -218,16 +298,10 @@ async function doPush(config, client, remotePath) {
   if (isSyncing) return;
   isSyncing = true;
   try {
-    const creds = getLocalCredentials();
-    if (!creds.claude && !creds.codex) return;
-
-    const jsonStr = JSON.stringify({
-      updatedAt: Date.now(),
-      platform: process.platform,
-      files: creds,
-    });
-
+    const bundle = collectFullCredentials();
+    const jsonStr = JSON.stringify(bundle);
     const currentHash = crypto.createHash("sha256").update(jsonStr).digest("hex");
+
     if (currentHash === lastUploadedHash) return;
 
     const encrypted = encrypt(Buffer.from(jsonStr, "utf-8"), config.passphrase);
@@ -235,10 +309,13 @@ async function doPush(config, client, remotePath) {
     await client.putFile(remotePath, encrypted);
 
     lastUploadedHash = currentHash;
-    updateStatusFile({ lastAction: "上传成功", lastActionTime: new Date().toLocaleTimeString() });
-    console.log("[NutstoreSync] 已自动将本机账号凭证加密同步到坚果云！");
+    updateSyncStatus({
+      lastAction: "全量备份上传成功",
+      lastActionTime: new Date().toLocaleTimeString(),
+    });
+    console.log(`[NutstoreSync] 已全量同步 ${Object.keys(bundle.magpieFiles).length} 个供应商核心数据文件到坚果云！`);
   } catch (err) {
-    console.error("[NutstoreSync] 同步上传失败:", err.message);
+    console.error("[NutstoreSync] 全量同步上传失败:", err.message);
   } finally {
     isSyncing = false;
   }
@@ -260,58 +337,69 @@ async function doPull(config, client, remotePath) {
     const decrypted = decrypt(encrypted, config.passphrase);
     const bundle = JSON.parse(decrypted.toString("utf-8"));
 
-    if (bundle && bundle.files) {
-      restoreLocalCredentials(bundle.files);
+    if (bundle && (bundle.magpieFiles || bundle.externalFiles)) {
+      restoreFullCredentials(bundle);
       lastRemoteSignature = signature;
-      const currentJson = JSON.stringify({
-        updatedAt: bundle.updatedAt,
-        platform: bundle.platform,
-        files: bundle.files,
+      lastUploadedHash = crypto.createHash("sha256").update(JSON.stringify(bundle)).digest("hex");
+      updateSyncStatus({
+        lastAction: "全量拉取恢复成功",
+        lastActionTime: new Date().toLocaleTimeString(),
+        remotePlatform: bundle.platform,
       });
-      lastUploadedHash = crypto.createHash("sha256").update(currentJson).digest("hex");
-      updateStatusFile({ lastAction: "拉取成功", lastActionTime: new Date().toLocaleTimeString(), remotePlatform: bundle.platform });
-      console.log(`[NutstoreSync] 成功从坚果云拉取并注入最新账号凭据 (来源: ${bundle.platform})！`);
+      console.log(`[NutstoreSync] 成功从坚果云拉取并全量恢复所有供应商账号数据 (来源: ${bundle.platform})！`);
     }
   } catch (err) {
-    console.error("[NutstoreSync] 同步拉取失败:", err.message);
+    console.error("[NutstoreSync] 全量拉取同步失败:", err.message);
   } finally {
     isSyncing = false;
   }
 }
 
+// -------------------------------------------------------------
+// 6. 插件入口与导出
+// -------------------------------------------------------------
 export default async function NutstoreAuthSyncPlugin() {
-  console.log("[NutstoreSync] william-magpie 坚果云免登同步插件启动");
+  console.log("[NutstoreSync] william-magpie 全量供应商免登同步插件已启动");
 
   const config = getNutstoreConfig();
   if (!config) {
-    console.warn("[NutstoreSync] 未检测到 Magpie 坚果云配置。如果你已经在 Magpie 设置里配置了坚果云，请确认配置已保存。");
-    updateStatusFile({ status: "未找到坚果云配置" });
+    console.warn("[NutstoreSync] 未检测到坚果云配置");
+    updateSyncStatus({ status: "未检测到坚果云配置" });
     return { name: "william-magpie", status: "unconfigured" };
   }
 
-  console.log(`[NutstoreSync] 自动直接读取到 Magpie 原生坚果云配置 (账号: ${config.webdav_user})，免去重复输入！`);
-  updateStatusFile({ status: "运行中", statusDesc: "已自动继承 Magpie 坚果云配置" });
+  console.log(`[NutstoreSync] 自动读取 Magpie 坚果云配置 (账号: ${config.webdav_user})`);
+  updateSyncStatus({ status: "运行中", statusDesc: "全量供应商自动同步就绪" });
 
   const client = new NutstoreWebDAV(config.webdav_url, config.webdav_user, config.webdav_pass);
   const remotePath = `${config.folder}/${SYNC_FILENAME}`;
 
-  // 1. 启动时拉取最新凭证
+  // 1. 启动时自动从坚果云拉取更新
   doPull(config, client, remotePath);
 
-  // 2. 自动监听本地登录态
-  const home = os.homedir();
-  const watchPaths = [path.join(home, ".claude"), path.join(home, ".codex")];
+  // 2. 监听 Magpie 目录及外部凭证文件的实时变动
   let pushTimer = null;
   const triggerDebouncedPush = () => {
     if (pushTimer) clearTimeout(pushTimer);
     pushTimer = setTimeout(() => doPush(config, client, remotePath), 3000);
   };
 
-  watchPaths.forEach((dir) => {
+  const watchTargets = [
+    MAGPIE_DIR,
+    path.join(os.homedir(), ".claude"),
+    path.join(os.homedir(), ".codex"),
+  ];
+
+  watchTargets.forEach((dir) => {
     try {
       if (fs.existsSync(dir)) {
         fs.watch(dir, (eventType, filename) => {
-          if (filename && (filename.includes("credentials") || filename.includes("auth"))) {
+          if (
+            filename &&
+            (filename.endsWith(".json") || filename.includes("credentials") || filename.includes("auth")) &&
+            !filename.includes("status") &&
+            !filename.endsWith(".bak")
+          ) {
             triggerDebouncedPush();
           }
         });
@@ -319,7 +407,7 @@ export default async function NutstoreAuthSyncPlugin() {
     } catch {}
   });
 
-  // 3. 后台轮询
+  // 3. 循环轮询 (默认每 5 分钟拉取一次)
   setInterval(() => doPull(config, client, remotePath), 5 * 60 * 1000);
 
   return {

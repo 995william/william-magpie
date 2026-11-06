@@ -117,6 +117,14 @@ main {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 6px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.title-with-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 h2 {
@@ -142,11 +150,27 @@ h2 {
 
 .tag-count {
   font-size: 11px;
-  padding: 2px 8px;
+  padding: 3px 10px;
   background: var(--accent-soft);
   color: var(--accent);
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.search-box input {
+  padding: 6px 12px;
   border-radius: 6px;
-  font-weight: 500;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12px;
+  outline: none;
+  width: 240px;
+  transition: border-color 0.2s;
+}
+
+.search-box input:focus {
+  border-color: var(--accent);
 }
 
 .info-grid {
@@ -192,53 +216,129 @@ h2 {
   color: var(--accent);
 }
 
-/* 供应商网格 */
-.provider-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-}
-
-@media (max-width: 600px) {
-  .provider-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.p-card {
+/* 账号列表分组容器 */
+.accounts-group-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  padding: 10px 12px;
-  border-radius: 8px;
-  position: relative;
+  gap: 12px;
 }
 
-.p-title {
+.provider-section {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.provider-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  font-weight: 600;
   font-size: 13px;
+}
+
+.provider-badge-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.p-category {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: normal;
+}
+
+.p-acc-count {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
   font-weight: 600;
 }
 
-.p-sub {
-  font-size: 11px;
-  color: var(--muted);
+.account-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line);
+  gap: 12px;
+  transition: background 0.15s;
+}
+
+.account-row:last-child {
+  border-bottom: none;
+}
+
+.account-row:hover {
+  background: var(--card);
+}
+
+.acc-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.acc-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  flex-shrink: 0;
+}
+
+.acc-name {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--fg);
+  min-width: 100px;
+}
+
+.acc-val {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  color: var(--fg);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding-right: 50px;
 }
 
-.p-badge {
-  position: absolute;
-  right: 10px;
-  top: 10px;
+.acc-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.acc-plan {
   font-size: 11px;
-  color: var(--green);
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.acc-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
   background: var(--green-soft);
-  padding: 2px 6px;
-  border-radius: 6px;
+  color: var(--green);
   font-weight: 500;
 }
 

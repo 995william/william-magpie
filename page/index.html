@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>全量供应商免登同步</title>
+  <title>坚果云全量账号免登同步</title>
   <link rel="stylesheet" href="style.css">
   <script src="_magpie/bridge.js"></script>
+  <script src="accounts-data.js"></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -17,13 +18,13 @@
         </svg>
       </div>
       <div>
-        <h1>全量供应商免登同步 (坚果云)</h1>
-        <p class="subtitle">全量托管所有模型供应商、OAuth 登录态、API 密钥与插件会话</p>
+        <h1>坚果云跨电脑免登同步</h1>
+        <p class="subtitle">多台电脑只需在一台登录，自动通过坚果云加密同步，多端无感免重复登录</p>
       </div>
     </div>
     <div class="badge-status">
       <span class="dot"></span>
-      <span id="runtime-status">全量自动同步中</span>
+      <span id="runtime-status">自动同步运行中</span>
     </div>
   </header>
 
@@ -32,11 +33,13 @@
     <section class="card">
       <div class="card-head">
         <h2>坚果云连接状态</h2>
-        <span class="tag-success">已继承 Magpie 原生坚果云配置</span>
+        <span class="tag-success">已直接读取 Magpie 原生配置</span>
       </div>
+      <p class="desc">插件已自动识别并复用 Magpie 客户端内已配置的坚果云信息，无需重复输入账号密码。</p>
+      
       <div class="info-grid">
         <div class="info-item">
-          <span class="label">绑定坚果云账号</span>
+          <span class="label">坚果云账号</span>
           <span class="val text-highlight" id="cfg-account">正在读取 Magpie 配置...</span>
         </div>
         <div class="info-item">
@@ -44,124 +47,61 @@
           <span class="val" id="cfg-url">https://dav.jianguoyun.com/dav/</span>
         </div>
         <div class="info-item">
-          <span class="label">端到端安全加密</span>
-          <span class="val text-success">AES-256-GCM 零知识加密 (已激活)</span>
+          <span class="label">端到端加密</span>
+          <span class="val text-success">AES-256-GCM 零知识安全加密</span>
         </div>
         <div class="info-item">
-          <span class="label">多端适配</span>
-          <span class="val">Windows & macOS 双向互通</span>
+          <span class="label">同步目录</span>
+          <span class="val">坚果云 / MagpieSync /</span>
         </div>
       </div>
     </section>
 
-    <!-- 卡片 2: 全量供应商纳管清单 (与 Magpie 供应商页面 1:1 对齐) -->
+    <!-- 卡片 2: 同步的具体账号明细展示 (核心重点) -->
     <section class="card">
       <div class="card-head">
-        <h2>已全部纳入同步的供应商清单</h2>
-        <span class="tag-count">全量覆盖 · 零遗漏</span>
+        <div class="title-with-badge">
+          <h2>已同步的具体账号明细</h2>
+          <span class="tag-count" id="total-badge">14 个供应商 · 50+ 个账号</span>
+        </div>
+        <div class="search-box">
+          <input type="text" id="search-input" placeholder="🔍 快速搜索账号、邮箱或供应商..." />
+        </div>
       </div>
-      <p class="desc">插件已自动打包以下全部供应商的登录态、Token、API 密钥与签到数据，并在云端实时同步：</p>
+      <p class="desc">以下账号的所有 Token 凭证、会话、API 密钥以及签到积分已完整加密同步至坚果云，在另一台电脑启动 Magpie 即可直接免登录使用：</p>
       
-      <div class="provider-grid">
-        <div class="p-card">
-          <div class="p-title">日日新 (SenseTime)</div>
-          <div class="p-sub">token.sensenova.cn · API Key</div>
-          <div class="p-badge">已同步</div>
-        </div>
-        <div class="p-card">
-          <div class="p-title">Codex</div>
-          <div class="p-sub">ChatGPT Plus 订阅登录态</div>
-          <div class="p-badge">已同步</div>
-        </div>
-        <div class="p-card">
-          <div class="p-title">Grok</div>
-          <div class="p-sub">xAI Grok 授权会话</div>
-          <div class="p-badge">已同步</div>
-        </div>
-        <div class="p-card">
-          <div class="p-title">WorkBuddy</div>
-          <div class="p-sub">手机号多账号登录态 + 签到</div>
-          <div class="p-badge">已同步</div>
-        </div>
-        <div class="p-card">
-          <div class="p-title">WorkBuddy AI</div>
-          <div class="p-sub">OAuth Token 与模型配置</div>
-          <div class="p-badge">已同步</div>
-        </div>
-        <div class="p-card">
-          <div class="p-title">Antigravity</div>
-          <div class="p-sub">Google AI Pro 5+账号池</div>
-          <div class="p-badge">已同步</div>
-        </div>
-        <div class="p-card">
-          <div class="p-title">OpenCode Zen Free</div>
-          <div class="p-sub">API Key 与模型映射</div>
-          <div class="p-badge">已同步</div>
-        </div>
-        <div class="p-card">
-          <div class="p-title">MiniMax Code (Global)</div>
-          <div class="p-sub">海内外多账号登录态与额度</div>
-          <div class="p-badge">已同步</div>
-        </div>
-        <div class="p-card">
-          <div class="p-title">商汤小浣熊 (Raccoon)</div>
-          <div class="p-sub">账号 Token 与自动签到</div>
-          <div class="p-badge">已同步</div>
-        </div>
-        <div class="p-card">
-          <div class="p-title">AutoClaw (Zhipu)</div>
-          <div class="p-sub">智谱清言多账号凭据</div>
-          <div class="p-badge">已同步</div>
-        </div>
-        <div class="p-card">
-          <div class="p-title">AutoClaw 国内 (Zhipu)</div>
-          <div class="p-sub">国内版手机号授权会话</div>
-          <div class="p-badge">已同步</div>
-        </div>
-        <div class="p-card">
-          <div class="p-title">New API</div>
-          <div class="p-sub">多站账号 Token 与模型重定向</div>
-          <div class="p-badge">已同步</div>
-        </div>
-        <div class="p-card">
-          <div class="p-title">Claude Code</div>
-          <div class="p-sub">~/.claude/ 凭据 + macOS Keychain</div>
-          <div class="p-badge">已同步</div>
-        </div>
-        <div class="p-card">
-          <div class="p-title">ZCode 专属</div>
-          <div class="p-sub">多账号 Start Plan 授权</div>
-          <div class="p-badge">已同步</div>
-        </div>
+      <!-- 动态展示所有已同步账号的分组容器 -->
+      <div class="accounts-group-list" id="accounts-container">
+        <!-- 由 app.js 动态渲染 -->
       </div>
     </section>
 
-    <!-- 卡片 3: 同步机制与运行状态 -->
+    <!-- 卡片 3: 同步控制与设置 -->
     <section class="card">
       <div class="card-head">
-        <h2>自动同步设置</h2>
+        <h2>插件运行偏好</h2>
       </div>
       <div class="toggle-list">
         <label class="toggle-item">
           <input type="checkbox" id="opt-autopush" checked>
           <div class="toggle-info">
-            <div class="toggle-title">监听本地任何供应商登录或刷新，自动推送到坚果云</div>
-            <div class="toggle-desc">无论是通过网页授权、API Key 添加还是插件签到更新，均在 3 秒内自动加密同步</div>
+            <div class="toggle-title">监听本地登录态并实时上传</div>
+            <div class="toggle-desc">当你在当前电脑登录或刷新账号时，自动加密上传至坚果云</div>
           </div>
         </label>
 
         <label class="toggle-item">
           <input type="checkbox" id="opt-autopull" checked>
           <div class="toggle-info">
-            <div class="toggle-title">Magpie 启动及每 5 分钟自动静默拉取</div>
-            <div class="toggle-desc">启动 Magpie 时自动恢复所有供应商的登录态，无需重新扫码登录</div>
+            <div class="toggle-title">启动及后台自动静默拉取</div>
+            <div class="toggle-desc">启动 Magpie 或在后台时自动检测云端更新，自动恢复免登录状态</div>
           </div>
         </label>
       </div>
 
       <div class="card-footer">
-        <span class="footer-note" id="save-hint">所有供应商账号均受 AES-256-GCM 保护</span>
-        <button type="button" class="btn-primary" id="btn-save">保存偏好</button>
+        <span class="footer-note" id="save-hint">配置在 Magpie 中自动持久化保存</span>
+        <button type="button" class="btn-primary" id="btn-save">保存设置</button>
       </div>
     </section>
   </main>

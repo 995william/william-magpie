@@ -1,0 +1,26 @@
+{
+  "name": "william-magpie",
+  "version": "1.0.0",
+  "description": "Magpie 坚果云账号凭证无感自动同步插件 (支持 Windows & macOS 双向免登录)",
+  "type": "module",
+  "main": "./index.mjs",
+  "scripts": {
+    "setup": "node ./setup.mjs"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "magpie",
+    "magpie-plugin"
+  ],
+  "author": "995william",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/995william/william-magpie.git"
+  },
+  "magpie": {
+    "name": "william-magpie",
+    "description": "多台电脑只要在一台登录，自动通过坚果云加密同步到其他电脑（支持 Claude Code、Codex 等），无感免重新扫码登录。"
+  }
+}

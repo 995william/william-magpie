@@ -1,0 +1,6 @@
+node_modules/
+.magpie-sync-config.json
+*.enc
+.DS_Store
+Thumbs.db
+*.log

@@ -4,13 +4,54 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { exec } from "node:child_process";
 
-// 配置文件位置：用户根目录下
-const CONFIG_FILE = path.join(os.homedir(), ".magpie-sync-config.json");
+// Magpie 官方配置文件路径
+const MAGPIE_DIR = path.join(os.homedir(), ".config", "magpie");
+const MAGPIE_SYNC_JSON = path.join(MAGPIE_DIR, "sync.json");
+const CUSTOM_CONFIG_FILE = path.join(os.homedir(), ".magpie-sync-config.json");
+const STATUS_FILE = path.join(MAGPIE_DIR, "nutstore-auth-sync-status.json");
 const SYNC_FILENAME = "magpie_credentials_bundle.enc";
-const DEFAULT_WEBDAV_URL = "https://dav.jianguoyun.com/dav/";
 
 // -------------------------------------------------------------
-// 1. 安全加密工具 (AES-256-GCM + PBKDF2)
+// 1. 读取坚果云配置 (优先直接复用 Magpie 现有的坚果云配置)
+// -------------------------------------------------------------
+function getNutstoreConfig() {
+  // 优先策略 1: 直接读取 Magpie 原生 settings 里已配置好的坚果云
+  if (fs.existsSync(MAGPIE_SYNC_JSON)) {
+    try {
+      const magpieSync = JSON.parse(fs.readFileSync(MAGPIE_SYNC_JSON, "utf-8"));
+      if (magpieSync.url && magpieSync.user && magpieSync.password) {
+        return {
+          webdav_url: magpieSync.url,
+          webdav_user: magpieSync.user,
+          webdav_pass: magpieSync.password,
+          passphrase: magpieSync.passphrase || "magpie-auth-secret",
+          folder: "MagpieSync",
+          source: "magpie_native",
+        };
+      }
+    } catch (e) {
+      console.warn("[NutstoreSync] 读取 Magpie 原生 sync.json 失败:", e.message);
+    }
+  }
+
+  // 备用策略 2: 自定义配置文件
+  if (fs.existsSync(CUSTOM_CONFIG_FILE)) {
+    try {
+      const custom = JSON.parse(fs.readFileSync(CUSTOM_CONFIG_FILE, "utf-8"));
+      if (custom.webdav_user && custom.webdav_pass) {
+        return {
+          ...custom,
+          source: "custom_file",
+        };
+      }
+    } catch {}
+  }
+
+  return null;
+}
+
+// -------------------------------------------------------------
+// 2. 加密解密核心 (AES-256-GCM + PBKDF2)
 // -------------------------------------------------------------
 function deriveKey(passphrase, salt) {
   return crypto.pbkdf2Sync(passphrase, salt, 100000, 32, "sha256");
@@ -23,7 +64,6 @@ function encrypt(plainBuffer, passphrase) {
   const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
   const ciphertext = Buffer.concat([cipher.update(plainBuffer), cipher.final()]);
   const tag = cipher.getAuthTag();
-  // 组装格式: salt(16) + iv(12) + tag(16) + ciphertext
   return Buffer.concat([salt, iv, tag, ciphertext]);
 }
 
@@ -43,7 +83,7 @@ function decrypt(cipherBuffer, passphrase) {
 }
 
 // -------------------------------------------------------------
-// 2. 坚果云 WebDAV 客户端 (基于原生 fetch)
+// 3. 坚果云 WebDAV 客户端
 // -------------------------------------------------------------
 class NutstoreWebDAV {
   constructor(baseUrl, username, password) {
@@ -51,26 +91,22 @@ class NutstoreWebDAV {
     this.authHeader = "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
   }
 
-  async request(subpath, method, body = null, headers = {}) {
+  async request(subpath, method, body = null) {
     const url = this.baseUrl + subpath.replace(/^\/+/, "");
-    const res = await fetch(url, {
+    return fetch(url, {
       method,
       headers: {
         Authorization: this.authHeader,
-        "User-Agent": "MagpieNutstoreSync/1.0",
-        ...headers,
+        "User-Agent": "MagpieNutstoreAuthSync/1.0",
       },
       body,
     });
-    return res;
   }
 
   async ensureFolder(folder) {
     try {
       await this.request(folder + "/", "MKCOL");
-    } catch {
-      // 忽略已存在或 MKCOL 错误
-    }
+    } catch {}
   }
 
   async getFile(subpath) {
@@ -104,13 +140,12 @@ class NutstoreWebDAV {
 }
 
 // -------------------------------------------------------------
-// 3. 本地凭据管理 (兼容 Windows & macOS)
+// 4. 凭据探测与跨平台写入
 // -------------------------------------------------------------
 function getLocalCredentials() {
   const home = os.homedir();
   const files = {};
 
-  // Claude Code
   const claudePath = path.join(home, ".claude", ".credentials.json");
   if (fs.existsSync(claudePath)) {
     try {
@@ -118,7 +153,6 @@ function getLocalCredentials() {
     } catch {}
   }
 
-  // Codex / ChatGPT
   const codexPath = path.join(home, ".codex", "auth.json");
   if (fs.existsSync(codexPath)) {
     try {
@@ -133,26 +167,21 @@ function restoreLocalCredentials(files) {
   const home = os.homedir();
   const isMac = process.platform === "darwin";
 
-  // 1. 恢复 Claude Code
   if (files.claude) {
     const claudeDir = path.join(home, ".claude");
     fs.mkdirSync(claudeDir, { recursive: true });
     const claudeFile = path.join(claudeDir, ".credentials.json");
     fs.writeFileSync(claudeFile, files.claude, "utf-8");
 
-    // 如果是 Mac，自动写入系统钥匙串 (Keychain) 解决 Mac 上只认钥匙串的问题
     if (isMac) {
       try {
         const username = process.env.USER || "default";
         const safeVal = files.claude.replace(/"/g, '\\"');
-        exec(`security add-generic-password -a "${username}" -s "Claude Code-credentials" -w "${safeVal}" -U`, (err) => {
-          if (!err) console.log("[NutstoreSync] 已自动将 Claude 凭据同步写入 macOS Keychain");
-        });
+        exec(`security add-generic-password -a "${username}" -s "Claude Code-credentials" -w "${safeVal}" -U`, () => {});
       } catch {}
     }
   }
 
-  // 2. 恢复 Codex
   if (files.codex) {
     const codexDir = path.join(home, ".codex");
     fs.mkdirSync(codexDir, { recursive: true });
@@ -161,18 +190,26 @@ function restoreLocalCredentials(files) {
   }
 }
 
-// -------------------------------------------------------------
-// 4. Magpie 插件主逻辑 (初始化、自动监听、定时拉取)
-// -------------------------------------------------------------
-function readConfig() {
-  if (!fs.existsSync(CONFIG_FILE)) return null;
+function updateStatusFile(extra = {}) {
   try {
-    return JSON.parse(fs.readFileSync(CONFIG_FILE, "utf-8"));
-  } catch {
-    return null;
-  }
+    const creds = getLocalCredentials();
+    const config = getNutstoreConfig();
+    const data = {
+      updatedAt: new Date().toLocaleString(),
+      account: config?.webdav_user || "未配置",
+      source: config?.source === "magpie_native" ? "已直接继承 Magpie 原生坚果云配置" : "自定义配置",
+      claudeReady: Boolean(creds.claude),
+      codexReady: Boolean(creds.codex),
+      platform: process.platform,
+      ...extra,
+    };
+    fs.writeFileSync(STATUS_FILE, JSON.stringify(data, null, 2), "utf-8");
+  } catch {}
 }
 
+// -------------------------------------------------------------
+// 5. 插件主逻辑与导出
+// -------------------------------------------------------------
 let lastUploadedHash = "";
 let lastRemoteSignature = "";
 let isSyncing = false;
@@ -191,16 +228,17 @@ async function doPush(config, client, remotePath) {
     });
 
     const currentHash = crypto.createHash("sha256").update(jsonStr).digest("hex");
-    if (currentHash === lastUploadedHash) return; // 内容无变动，跳过上传
+    if (currentHash === lastUploadedHash) return;
 
     const encrypted = encrypt(Buffer.from(jsonStr, "utf-8"), config.passphrase);
-    await client.ensureFolder(config.folder || "MagpieSync");
+    await client.ensureFolder(config.folder);
     await client.putFile(remotePath, encrypted);
 
     lastUploadedHash = currentHash;
-    console.log("[NutstoreSync] 本机账号登录态已自动加密同步到坚果云！");
+    updateStatusFile({ lastAction: "上传成功", lastActionTime: new Date().toLocaleTimeString() });
+    console.log("[NutstoreSync] 已自动将本机账号凭证加密同步到坚果云！");
   } catch (err) {
-    console.error("[NutstoreSync] 上传同步失败:", err.message);
+    console.error("[NutstoreSync] 同步上传失败:", err.message);
   } finally {
     isSyncing = false;
   }
@@ -214,7 +252,7 @@ async function doPull(config, client, remotePath) {
     if (!info) return;
 
     const signature = `${info.etag}_${info.lastModified}`;
-    if (signature && signature === lastRemoteSignature) return; // 远端无更新
+    if (signature && signature === lastRemoteSignature) return;
 
     const encrypted = await client.getFile(remotePath);
     if (!encrypted) return;
@@ -231,54 +269,42 @@ async function doPull(config, client, remotePath) {
         files: bundle.files,
       });
       lastUploadedHash = crypto.createHash("sha256").update(currentJson).digest("hex");
-      console.log(`[NutstoreSync] 成功从坚果云拉取并注入最新账号凭据 (来源平台: ${bundle.platform})！`);
+      updateStatusFile({ lastAction: "拉取成功", lastActionTime: new Date().toLocaleTimeString(), remotePlatform: bundle.platform });
+      console.log(`[NutstoreSync] 成功从坚果云拉取并注入最新账号凭据 (来源: ${bundle.platform})！`);
     }
   } catch (err) {
-    console.error("[NutstoreSync] 拉取同步失败:", err.message);
+    console.error("[NutstoreSync] 同步拉取失败:", err.message);
   } finally {
     isSyncing = false;
   }
 }
 
-// -------------------------------------------------------------
-// 5. 导出 Magpie 插件入口
-// -------------------------------------------------------------
 export default async function NutstoreAuthSyncPlugin() {
-  console.log("[NutstoreSync] william-magpie 坚果云跨平台免登录同步插件已加载");
+  console.log("[NutstoreSync] william-magpie 坚果云免登同步插件启动");
 
-  const config = readConfig();
-  if (!config || !config.webdav_user || !config.webdav_pass || !config.passphrase) {
-    console.warn("[NutstoreSync] 尚未检测到配置，请在终端运行: npm run setup 进行初次坚果云配置");
-    return {
-      name: "william-magpie",
-      status: "unconfigured",
-    };
+  const config = getNutstoreConfig();
+  if (!config) {
+    console.warn("[NutstoreSync] 未检测到 Magpie 坚果云配置。如果你已经在 Magpie 设置里配置了坚果云，请确认配置已保存。");
+    updateStatusFile({ status: "未找到坚果云配置" });
+    return { name: "william-magpie", status: "unconfigured" };
   }
 
-  const client = new NutstoreWebDAV(
-    config.webdav_url || DEFAULT_WEBDAV_URL,
-    config.webdav_user,
-    config.webdav_pass
-  );
-  const folder = config.folder || "MagpieSync";
-  const remotePath = `${folder}/${SYNC_FILENAME}`;
+  console.log(`[NutstoreSync] 自动直接读取到 Magpie 原生坚果云配置 (账号: ${config.webdav_user})，免去重复输入！`);
+  updateStatusFile({ status: "运行中", statusDesc: "已自动继承 Magpie 坚果云配置" });
 
-  // 1. 启动时先拉取一次远端最新凭据
+  const client = new NutstoreWebDAV(config.webdav_url, config.webdav_user, config.webdav_pass);
+  const remotePath = `${config.folder}/${SYNC_FILENAME}`;
+
+  // 1. 启动时拉取最新凭证
   doPull(config, client, remotePath);
 
-  // 2. 监听本地凭据变动（若用户在本机登录或刷新了 Token，自动上传）
+  // 2. 自动监听本地登录态
   const home = os.homedir();
-  const watchPaths = [
-    path.join(home, ".claude"),
-    path.join(home, ".codex"),
-  ];
-
+  const watchPaths = [path.join(home, ".claude"), path.join(home, ".codex")];
   let pushTimer = null;
   const triggerDebouncedPush = () => {
     if (pushTimer) clearTimeout(pushTimer);
-    pushTimer = setTimeout(() => {
-      doPush(config, client, remotePath);
-    }, 3000); // 3秒防抖
+    pushTimer = setTimeout(() => doPush(config, client, remotePath), 3000);
   };
 
   watchPaths.forEach((dir) => {
@@ -293,14 +319,13 @@ export default async function NutstoreAuthSyncPlugin() {
     } catch {}
   });
 
-  // 3. 循环轮询：每隔 5 分钟检查坚果云是否有其它电脑提交的最新凭据
-  setInterval(() => {
-    doPull(config, client, remotePath);
-  }, 5 * 60 * 1000);
+  // 3. 后台轮询
+  setInterval(() => doPull(config, client, remotePath), 5 * 60 * 1000);
 
   return {
     name: "william-magpie",
     status: "active",
+    account: config.webdav_user,
     syncNow: () => doPull(config, client, remotePath),
     pushNow: () => doPush(config, client, remotePath),
   };

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>坚果云免登同步</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="_magpie/bridge.js"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+        </svg>
+      </div>
+      <div>
+        <h1>坚果云跨电脑免登同步</h1>
+        <p class="subtitle">多台电脑只需在一台登录，自动通过坚果云加密同步，多端无感免重复登录</p>
+      </div>
+    </div>
+    <div class="badge-status">
+      <span class="dot"></span>
+      <span id="runtime-status">自动同步运行中</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- 卡片 1: 坚果云配置 (直接继承，免输入) -->
+    <section class="card">
+      <div class="card-head">
+        <h2>坚果云连接状态</h2>
+        <span class="tag-success">已直接读取 Magpie 原生配置</span>
+      </div>
+      <p class="desc">插件已自动识别并复用 Magpie 客户端内已配置的坚果云信息，无需重复输入账号密码。</p>
+      
+      <div class="info-grid">
+        <div class="info-item">
+          <span class="label">坚果云账号</span>
+          <span class="val" id="cfg-account">正在读取 Magpie 配置...</span>
+        </div>
+        <div class="info-item">
+          <span class="label">WebDAV 地址</span>
+          <span class="val" id="cfg-url">https://dav.jianguoyun.com/dav/</span>
+        </div>
+        <div class="info-item">
+          <span class="label">端到端加密</span>
+          <span class="val text-success">AES-256-GCM (零知识高强度加密)</span>
+        </div>
+        <div class="info-item">
+          <span class="label">同步目录</span>
+          <span class="val">坚果云 / MagpieSync /</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 卡片 2: 支持的底层客户端凭据 -->
+    <section class="card">
+      <div class="card-head">
+        <h2>登录态自动捕获与多端免登监控</h2>
+      </div>
+      <div class="client-list">
+        <div class="client-item">
+          <div class="client-icon">Claude</div>
+          <div class="client-info">
+            <div class="client-name">Claude Code 订阅账号</div>
+            <div class="client-path">~/.claude/.credentials.json</div>
+          </div>
+          <div class="client-state">
+            <span class="badge-ok">已纳入自动同步</span>
+          </div>
+        </div>
+
+        <div class="client-item">
+          <div class="client-icon">Codex</div>
+          <div class="client-info">
+            <div class="client-name">Codex / ChatGPT 账号</div>
+            <div class="client-path">~/.codex/auth.json</div>
+          </div>
+          <div class="client-state">
+            <span class="badge-ok">已纳入自动同步</span>
+          </div>
+        </div>
+
+        <div class="client-item">
+          <div class="client-icon">Mac</div>
+          <div class="client-info">
+            <div class="client-name">macOS 系统钥匙串 (Keychain)</div>
+            <div class="client-path">在 Mac 电脑上自动注入钥匙串，彻底解决 Mac 重复授权</div>
+          </div>
+          <div class="client-state">
+            <span class="badge-ok">Mac 原生支持</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 卡片 3: 同步控制与设置 -->
+    <section class="card">
+      <div class="card-head">
+        <h2>插件运行偏好</h2>
+      </div>
+      <div class="toggle-list">
+        <label class="toggle-item">
+          <input type="checkbox" id="opt-autopush" checked>
+          <div class="toggle-info">
+            <div class="toggle-title">监听本地登录态并实时上传</div>
+            <div class="toggle-desc">当你在当前电脑登录或刷新账号时，自动加密上传至坚果云</div>
+          </div>
+        </label>
+
+        <label class="toggle-item">
+          <input type="checkbox" id="opt-autopull" checked>
+          <div class="toggle-info">
+            <div class="toggle-title">启动及后台自动静默拉取</div>
+            <div class="toggle-desc">启动 Magpie 或在后台时自动检测云端更新，自动恢复免登录状态</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="card-footer">
+        <span class="footer-note" id="save-hint">配置在 Magpie 中自动持久化保存</span>
+        <button type="button" class="btn-primary" id="btn-save">保存设置</button>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

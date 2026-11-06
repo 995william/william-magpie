@@ -48,6 +48,8 @@ header {
   margin-bottom: 24px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .brand {
@@ -78,6 +80,43 @@ h1 {
   margin: 2px 0 0;
   font-size: 12px;
   color: var(--muted);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 手动刷新同步按钮 */
+.btn-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--fg);
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.btn-sync:hover {
+  background: var(--card);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-sync.spinning svg {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  100% { transform: rotate(360deg); }
 }
 
 .badge-status {
@@ -157,6 +196,26 @@ h2 {
   font-weight: 600;
 }
 
+.card-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-text {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.btn-text:hover {
+  text-decoration: underline;
+}
+
 .search-box input {
   padding: 6px 12px;
   border-radius: 6px;
@@ -165,7 +224,7 @@ h2 {
   color: var(--fg);
   font-size: 12px;
   outline: none;
-  width: 240px;
+  width: 220px;
   transition: border-color 0.2s;
 }
 
@@ -220,7 +279,7 @@ h2 {
 .accounts-group-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .provider-section {
@@ -228,17 +287,48 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
+  transition: all 0.2s;
 }
 
+/* 可折叠头部 */
 .provider-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
   background: var(--card);
-  border-bottom: 1px solid var(--line);
   font-weight: 600;
   font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.provider-header:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+@media (prefers-color-scheme: dark) {
+  .provider-header:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chevron {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s ease;
+  color: var(--muted);
+}
+
+.provider-section.collapsed .chevron {
+  transform: rotate(-90deg);
 }
 
 .provider-badge-group {
@@ -265,6 +355,11 @@ h2 {
 .account-rows {
   display: flex;
   flex-direction: column;
+  border-top: 1px solid var(--line);
+}
+
+.provider-section.collapsed .account-rows {
+  display: none;
 }
 
 .account-row {
@@ -342,10 +437,87 @@ h2 {
   font-weight: 500;
 }
 
+/* 偏好设置 */
 .toggle-list {
   display: flex;
   flex-direction: column;
+  gap: 12px;
+}
+
+/* 时间间隔设置项 */
+.setting-item {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+}
+
+.interval-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.quick-presets {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.preset-btn {
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.preset-btn:hover {
+  color: var(--fg);
+  border-color: var(--muted);
+}
+
+.preset-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.input-with-unit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.num-input {
+  width: 70px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  outline: none;
+}
+
+.num-input:focus {
+  border-color: var(--accent);
+}
+
+.unit {
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .toggle-item {

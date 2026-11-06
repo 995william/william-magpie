@@ -22,9 +22,20 @@
         <p class="subtitle">多台电脑只需在一台登录，自动通过坚果云加密同步，多端无感免重复登录</p>
       </div>
     </div>
-    <div class="badge-status">
-      <span class="dot"></span>
-      <span id="runtime-status">自动同步运行中</span>
+    
+    <div class="header-actions">
+      <!-- 手动刷新同步按钮 -->
+      <button type="button" class="btn-sync" id="btn-manual-sync">
+        <svg id="sync-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+        </svg>
+        <span id="sync-btn-text">立即刷新同步</span>
+      </button>
+
+      <div class="badge-status">
+        <span class="dot"></span>
+        <span id="runtime-status">自动同步运行中</span>
+      </div>
     </div>
   </header>
 
@@ -33,13 +44,13 @@
     <section class="card">
       <div class="card-head">
         <h2>坚果云连接状态</h2>
-        <span class="tag-success">已直接读取 Magpie 原生配置</span>
+        <span class="tag-success">已继承 Magpie 原生坚果云配置</span>
       </div>
       <p class="desc">插件已自动识别并复用 Magpie 客户端内已配置的坚果云信息，无需重复输入账号密码。</p>
       
       <div class="info-grid">
         <div class="info-item">
-          <span class="label">坚果云账号</span>
+          <span class="label">绑定坚果云账号</span>
           <span class="val text-highlight" id="cfg-account">正在读取 Magpie 配置...</span>
         </div>
         <div class="info-item">
@@ -47,28 +58,31 @@
           <span class="val" id="cfg-url">https://dav.jianguoyun.com/dav/</span>
         </div>
         <div class="info-item">
-          <span class="label">端到端加密</span>
+          <span class="label">端到端安全加密</span>
           <span class="val text-success">AES-256-GCM 零知识安全加密</span>
         </div>
         <div class="info-item">
-          <span class="label">同步目录</span>
-          <span class="val">坚果云 / MagpieSync /</span>
+          <span class="label">当前同步状态</span>
+          <span class="val" id="last-sync-time">实时监测同步中</span>
         </div>
       </div>
     </section>
 
-    <!-- 卡片 2: 同步的具体账号明细展示 (核心重点) -->
+    <!-- 卡片 2: 同步的具体账号明细展示 (支持折叠展开与搜索) -->
     <section class="card">
       <div class="card-head">
         <div class="title-with-badge">
           <h2>已同步的具体账号明细</h2>
           <span class="tag-count" id="total-badge">14 个供应商 · 50+ 个账号</span>
         </div>
-        <div class="search-box">
-          <input type="text" id="search-input" placeholder="🔍 快速搜索账号、邮箱或供应商..." />
+        <div class="card-tools">
+          <button type="button" class="btn-text" id="btn-toggle-all">全部折叠</button>
+          <div class="search-box">
+            <input type="text" id="search-input" placeholder="🔍 搜索供应商、账号、邮箱..." />
+          </div>
         </div>
       </div>
-      <p class="desc">以下账号的所有 Token 凭证、会话、API 密钥以及签到积分已完整加密同步至坚果云，在另一台电脑启动 Magpie 即可直接免登录使用：</p>
+      <p class="desc">点击任意供应商卡片即可折叠/展开其下的具体账号。所有账号的 Token 凭证、会话均已加密同步至坚果云：</p>
       
       <!-- 动态展示所有已同步账号的分组容器 -->
       <div class="accounts-group-list" id="accounts-container">
@@ -76,12 +90,34 @@
       </div>
     </section>
 
-    <!-- 卡片 3: 同步控制与设置 -->
+    <!-- 卡片 3: 同步控制与时间间隔设置 -->
     <section class="card">
       <div class="card-head">
-        <h2>插件运行偏好</h2>
+        <h2>插件运行偏好与同步频率</h2>
       </div>
+
       <div class="toggle-list">
+        <!-- 自动同步间隔设置项 -->
+        <div class="setting-item">
+          <div class="setting-info">
+            <div class="toggle-title">自动同步时间间隔</div>
+            <div class="toggle-desc">后台与坚果云自动比对并拉取更新的频率（可在下方快捷选择或自定义输入分钟数）</div>
+          </div>
+          <div class="interval-control">
+            <div class="quick-presets" id="interval-presets">
+              <button type="button" class="preset-btn" data-val="1">1分钟</button>
+              <button type="button" class="preset-btn" data-val="5">5分钟</button>
+              <button type="button" class="preset-btn" data-val="10">10分钟</button>
+              <button type="button" class="preset-btn" data-val="30">30分钟</button>
+              <button type="button" class="preset-btn" data-val="60">60分钟</button>
+            </div>
+            <div class="input-with-unit">
+              <input type="number" id="opt-interval" min="1" max="1440" value="5" class="num-input">
+              <span class="unit">分钟</span>
+            </div>
+          </div>
+        </div>
+
         <label class="toggle-item">
           <input type="checkbox" id="opt-autopush" checked>
           <div class="toggle-info">
@@ -93,8 +129,8 @@
         <label class="toggle-item">
           <input type="checkbox" id="opt-autopull" checked>
           <div class="toggle-info">
-            <div class="toggle-title">启动及后台自动静默拉取</div>
-            <div class="toggle-desc">启动 Magpie 或在后台时自动检测云端更新，自动恢复免登录状态</div>
+            <div class="toggle-title">启动及后台自动定时静默拉取</div>
+            <div class="toggle-desc">启动 Magpie 或在后台按上方设定的间隔时间自动检测云端更新并同步</div>
           </div>
         </label>
       </div>

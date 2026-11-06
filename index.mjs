@@ -63,6 +63,21 @@ function getNutstoreConfig() {
   return null;
 }
 
+// 获取用户在界面中自定义的同步时间间隔 (默认 5 分钟)
+function getSyncIntervalMinutes() {
+  try {
+    const pluginsJsonPath = path.join(MAGPIE_DIR, "plugins.json");
+    if (fs.existsSync(pluginsJsonPath)) {
+      const pObj = JSON.parse(fs.readFileSync(pluginsJsonPath, "utf-8"));
+      const item = pObj.plugins?.find((p) => p.spec?.includes("william-magpie"));
+      if (item?.options?.intervalMinutes) {
+        return Math.max(1, parseInt(item.options.intervalMinutes, 10));
+      }
+    }
+  } catch {}
+  return 5;
+}
+
 // -------------------------------------------------------------
 // 2. 加密解密核心 (AES-256-GCM + PBKDF2)
 // -------------------------------------------------------------
@@ -238,7 +253,6 @@ function restoreFullCredentials(bundle) {
   }
 }
 
-// 自动生成 page/accounts-data.js 供 UI 页面动态读取
 function generateAccountsDataJs() {
   try {
     const rawGroups = {};
@@ -251,7 +265,6 @@ function generateAccountsDataJs() {
       }
     };
 
-    // 1. 从 logins.json 提取
     const loginsPath = path.join(MAGPIE_DIR, "logins.json");
     if (fs.existsSync(loginsPath)) {
       const logins = JSON.parse(fs.readFileSync(loginsPath, "utf-8"));
@@ -275,7 +288,6 @@ function generateAccountsDataJs() {
       });
     }
 
-    // 2. 从 plugin-auth.json 提取
     const pluginAuthPath = path.join(MAGPIE_DIR, "plugin-auth.json");
     if (fs.existsSync(pluginAuthPath)) {
       const pAuth = JSON.parse(fs.readFileSync(pluginAuthPath, "utf-8"));
@@ -294,7 +306,6 @@ function generateAccountsDataJs() {
       });
     }
 
-    // 3. 从 providers.json 提取
     const providersPath = path.join(MAGPIE_DIR, "providers.json");
     if (fs.existsSync(providersPath)) {
       const pObj = JSON.parse(fs.readFileSync(providersPath, "utf-8"));
@@ -311,7 +322,6 @@ function generateAccountsDataJs() {
       });
     }
 
-    // 4. 外部 Claude Code
     const home = os.homedir();
     if (fs.existsSync(path.join(home, ".claude", ".credentials.json"))) {
       add("Claude Code", "本地 CLI 订阅", "本地凭据", "~/.claude/.credentials.json", "Claude 订阅会话 + Mac 钥匙串");
@@ -319,13 +329,11 @@ function generateAccountsDataJs() {
 
     const jsContent = `// 自动提取的实时同步账号数据\nwindow.SYNCED_ACCOUNTS = ${JSON.stringify(Object.values(rawGroups), null, 2)};\n`;
 
-    // 写入当前目录下的 page/accounts-data.js
     const pageDir = path.join(import.meta.dirname || process.cwd(), "page");
     if (fs.existsSync(pageDir)) {
       fs.writeFileSync(path.join(pageDir, "accounts-data.js"), jsContent, "utf-8");
     }
 
-    // 写入安装目录下的 page/accounts-data.js
     const installedPage = path.join(MAGPIE_DIR, "plugins", "node_modules", "william-magpie", "page");
     if (fs.existsSync(installedPage)) {
       fs.writeFileSync(path.join(installedPage, "accounts-data.js"), jsContent, "utf-8");
@@ -402,7 +410,6 @@ async function doPull(config, client, remotePath) {
 export default async function NutstoreAuthSyncPlugin() {
   console.log("[NutstoreSync] william-magpie 全量供应商免登同步插件已启动");
 
-  // 生成实时账号展示数据
   generateAccountsDataJs();
 
   const config = getNutstoreConfig();
@@ -410,8 +417,6 @@ export default async function NutstoreAuthSyncPlugin() {
     console.warn("[NutstoreSync] 未检测到坚果云配置");
     return { name: "william-magpie", status: "unconfigured" };
   }
-
-  console.log(`[NutstoreSync] 自动读取 Magpie 坚果云配置 (账号: ${config.webdav_user})`);
 
   const client = new NutstoreWebDAV(config.webdav_url, config.webdav_user, config.webdav_pass);
   const remotePath = `${config.folder}/${SYNC_FILENAME}`;
@@ -441,13 +446,28 @@ export default async function NutstoreAuthSyncPlugin() {
             !filename.endsWith(".bak")
           ) {
             triggerDebouncedPush();
+            // 如果 plugins.json 变动，重新更新同步时间间隔
+            if (filename === "plugins.json") {
+              resetSyncTimer();
+            }
           }
         });
       }
     } catch {}
   });
 
-  setInterval(() => doPull(config, client, remotePath), 5 * 60 * 1000);
+  // 动态同步间隔定时器
+  let syncTimer = null;
+  function resetSyncTimer() {
+    if (syncTimer) clearInterval(syncTimer);
+    const mins = getSyncIntervalMinutes();
+    console.log(`[NutstoreSync] 自动同步间隔已设置为每 ${mins} 分钟一次`);
+    syncTimer = setInterval(() => {
+      doPull(config, client, remotePath);
+    }, mins * 60 * 1000);
+  }
+
+  resetSyncTimer();
 
   return {
     name: "william-magpie",
@@ -455,5 +475,8 @@ export default async function NutstoreAuthSyncPlugin() {
     account: config.webdav_user,
     syncNow: () => doPull(config, client, remotePath),
     pushNow: () => doPush(config, client, remotePath),
+    setIntervalMinutes: (mins) => {
+      resetSyncTimer();
+    },
   };
 }
